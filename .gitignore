@@ -1,6 +1,8 @@
-# Generated artifacts (regenerate from source via ./typesetting/build.sh)
-output/*.pdf
+# Diagram PNGs — non-deterministic mmdc output, regenerate via ./typesetting/build.sh
 typesetting/diagram/*.png
+
+# Note: output/*.pdf is intentionally tracked — distributable artifacts for
+# students/dosen who don't need (or want) the typst toolchain.
 
 # Typst cache
 .typst-cache/
