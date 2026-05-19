@@ -99,7 +99,7 @@ Di router VM:
 + Buat user `admin` dengan sudo access (tambah ke `/etc/sudoers` atau group `wheel`)
 + Generate SSH key pair di host laptop, install public key ke `/home/admin/.ssh/authorized_keys`
 + Edit `/etc/ssh/sshd_config`: disable root login (`PermitRootLogin no`)
-+ Restart sshd, verifikasi: SSH dengan key sebagai `admin` works, login root via SSH tertolak
++ Restart sshd, verifikasi: SSH sebagai `admin` dengan key berhasil, login root via SSH ditolak
 + Pada `/data`, set ownership ke `admin:admin`, permissions 770 (rwx untuk user+group)
 
 == Tugas 3 — Package Install + Service Management (10 menit)
@@ -109,17 +109,17 @@ Di router VM:
 Di B1:
 + Install nginx via `apk add nginx` (sudah ada di baseline, verifikasi)
 + Buat halaman index custom berisi nama kelompok di `/var/www/localhost/htdocs/index.html`
-+ Enable & start nginx sebagai service:
++ Aktifkan dan jalankan nginx sebagai service:
   - Alpine pakai OpenRC: `rc-update add nginx default` dan `rc-service nginx start`
   - Atau jika ada systemd: `systemctl enable --now nginx`
 + Verifikasi status service: `rc-service nginx status` atau `systemctl status nginx`
-+ View logs: `tail /var/log/nginx/access.log` saat ada request masuk
++ Lihat log: `tail /var/log/nginx/access.log` saat ada request masuk
 
 == Tugas 4 — Network Configuration Persistent (15 menit)
 
 *Tag: LPIC 109.2 · Nilai: SO 0, Jaringan 20*
 
-+ Assign static IP + netmask + gateway di setiap VM, tulis ke `/etc/network/interfaces` supaya persistent
++ Tetapkan static IP + netmask + gateway di setiap VM, tulis ke `/etc/network/interfaces` supaya persistent
   - Router: eth1 = 192.168.10.1/24, eth2 = 192.168.20.1/24
   - A1 = 192.168.10.10/24 (gateway 192.168.10.1)
   - A2 = 192.168.10.11/24 (gateway 192.168.10.1)
@@ -129,7 +129,7 @@ Di B1:
 + Konfigurasi MASQUERADE NAT di router:
   #raw("iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE", lang: "shell", block: true)
   Simpan rule supaya persistent: `rc-service iptables save`
-+ Verifikasi: ping cross-LAN works, ping 8.8.8.8 dari client works, semua persist setelah reboot
++ Verifikasi: ping cross-LAN berhasil, ping 8.8.8.8 dari client berhasil, semua tetap aktif setelah reboot
 
 == Tugas 5 — DNS Server + Client (10 menit)
 
@@ -156,14 +156,14 @@ Tulis script `setup-network.sh` yang menerima 4 parameter: interface, IP/CIDR, g
 )
 
 Script harus:
-+ Validate jumlah parameter (exit dengan error message kalau salah)
-+ Validate format IP (basic regex match)
-+ Bring down interface, flush addresses lama
-+ Set new address, default gateway, DNS in resolv.conf
-+ Bring up interface
-+ Test connectivity: ping gateway 3 kali, output hasilnya
++ Validasi jumlah parameter (exit dengan error message kalau salah)
++ Validasi format IP (basic regex match)
++ Matikan interface (`ip link set down`), hapus address lama (`ip addr flush`)
++ Atur address baru, default gateway, dan DNS di `/etc/resolv.conf`
++ Hidupkan interface (`ip link set up`)
++ Tes konektivitas: ping gateway 3 kali, tampilkan hasilnya
 
-Run script untuk re-configure salah satu client VM (misal A2). Verifikasi: setting baru aktif.
+Jalankan script untuk konfigurasi ulang salah satu client VM (misal A2). Verifikasi: setting baru aktif.
 
 == Tugas 7 — HTTP via Telnet (5 menit)
 
@@ -179,13 +179,13 @@ Run script untuk re-configure salah satu client VM (misal A2). Verifikasi: setti
 
 *Tag: LPIC 109.3, 110.1 · Nilai: SO 10, Jaringan 15*
 
-+ Dosen sabotage 1 konfigurasi di salah satu VM kelompok (kelompok tidak tahu apa). Pilihan:
-  - Wrong netmask di salah satu client
-  - Default gateway di-remove
++ Dosen menyabotase 1 konfigurasi di salah satu VM kelompok (kelompok tidak tahu apa). Pilihan:
+  - Netmask salah di salah satu client
+  - Default gateway dihapus
   - iptables MASQUERADE rule di-flush
-  - resolv.conf points ke server yang salah
-+ Kelompok diagnose dalam 5 menit pakai tools: `ping`, `traceroute`, `ip addr`, `ip route`, `ss`, `dig`, `journalctl`, `cat /etc/network/interfaces`
-+ Fix masalah, verifikasi connectivity restored
+  - `resolv.conf` menunjuk ke server yang salah
++ Kelompok mendiagnosis dalam 5 menit pakai tools: `ping`, `traceroute`, `ip addr`, `ip route`, `ss`, `dig`, `journalctl`, `cat /etc/network/interfaces`
++ Perbaiki masalah, verifikasi konektivitas pulih
 + *Kemudian*: capture HTTP traffic dari A1 ke `tugas.lab` dengan `tcpdump`:
   #raw("tcpdump -i any -w trace.pcap host tugas.lab", lang: "shell", block: true)
 + Buka `trace.pcap` di Wireshark, tunjukkan:
@@ -199,13 +199,13 @@ Run script untuk re-configure salah satu client VM (misal A2). Verifikasi: setti
 *Tag: LPIC 103.5, 103.6 · Nilai: SO 10, Jaringan 0*
 
 Di sembarang VM:
-+ Run command yang berjalan lama di background: `sleep 1000 &`
-+ Find PID dengan `ps aux | grep sleep` atau `pgrep sleep`
-+ Show process tree dengan `pstree` atau `ps -ef --forest`
-+ Send signal: `kill -STOP <pid>` (pause), verify dengan `ps -o pid,state,comm <pid>` → state harus T (stopped)
-+ Resume: `kill -CONT <pid>`
-+ Run command dengan priority lebih rendah: `nice -n 10 yes > /dev/null &`, verifikasi priority dengan `ps -o pid,ni,comm`
-+ Kill semua proses test
++ Jalankan command yang berjalan lama di background: `sleep 1000 &`
++ Cari PID dengan `ps aux | grep sleep` atau `pgrep sleep`
++ Tampilkan process tree dengan `pstree` atau `ps -ef --forest`
++ Kirim signal: `kill -STOP <pid>` (pause), verifikasi dengan `ps -o pid,state,comm <pid>` → state harus T (stopped)
++ Lanjutkan: `kill -CONT <pid>`
++ Jalankan command dengan priority lebih rendah: `nice -n 10 yes > /dev/null &`, verifikasi priority dengan `ps -o pid,ni,comm`
++ Hentikan semua proses test (`kill <pid>`)
 
 = Pelaksanaan dan Verifikasi
 
@@ -216,7 +216,7 @@ Di sembarang VM:
   - Anggota lain tidak boleh mengetik atau mengoperasikan keyboard saat anggota terpilih demo
   - Boleh diskusi verbal singkat untuk panduan, tapi *penalty individual* diterapkan jika anggota terpilih kesulitan
 - Jika satu tugas gagal, lanjut ke tugas berikut — partial credit tetap diberikan
-- *AI policy*: tidak ada larangan AI tools selama fase build. Tapi dosen mengamati keyboard saat verifikasi → student tidak bisa MITM pertanyaan ke AI real-time
+- *AI policy*: tidak ada larangan AI tools selama fase build. Tapi dosen mengamati keyboard saat verifikasi → mahasiswa tidak bisa MITM pertanyaan ke AI real-time
 
 = Penilaian
 
