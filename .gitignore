@@ -1,5 +1,6 @@
-# Generated PDFs (kept out of git; regenerate from source)
+# Generated artifacts (regenerate from source via ./typesetting/build.sh)
 output/*.pdf
+typesetting/diagram/*.png
 
 # Typst cache
 .typst-cache/
