@@ -1,0 +1,13 @@
+# Generated PDFs (kept out of git; regenerate from source)
+output/*.pdf
+
+# Typst cache
+.typst-cache/
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
