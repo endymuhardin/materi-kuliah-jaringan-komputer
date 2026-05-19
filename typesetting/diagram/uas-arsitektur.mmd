@@ -1,0 +1,42 @@
+graph LR
+    DEV["<b>Developer</b><br/>laptop"]
+    GH["<b>GitHub Repo</b><br/>main branch<br/>+ workflow file"]
+    GHA["<b>GitHub Actions</b><br/>build, test,<br/>SSH deploy"]
+
+    USER(["<b>User Browser</b>"])
+    DNS["<b>Domain DNS</b><br/>A record → VPS IP<br/>(Cloudflare/Namecheap)"]
+
+    subgraph VPS["<b>VPS Server</b> (Hetzner/DigitalOcean/Linode)"]
+        direction TB
+        CADDY["<b>Caddy</b><br/>Reverse Proxy<br/>+ Let's Encrypt SSL<br/>:443 :80"]
+        APP["<b>App Container</b><br/>ExpressJS / static<br/>(Docker Compose)"]
+        UKUMA["<b>Uptime Kuma</b><br/>Monitoring<br/>(sibling container)"]
+        CADDY -->|proxy_pass| APP
+    end
+
+    CLOUD["<b>Cloud Storage</b><br/>S3 / R2 / B2<br/>(daily backup)"]
+
+    DEV -->|git push main| GH
+    GH -->|trigger workflow| GHA
+    GHA -->|SSH + docker compose<br/>pull && up -d| VPS
+
+    USER -->|1\. resolve domain| DNS
+    DNS -.->|2\. returns VPS IP| USER
+    USER -->|3\. HTTPS request| CADDY
+
+    UKUMA -.->|HTTP health check| CADDY
+    APP -.->|cron daily<br/>pg_dump + rclone| CLOUD
+
+    classDef src fill:#FFF3CD,stroke:#856404,stroke-width:2px;
+    classDef ci fill:#D4EDDA,stroke:#155724,stroke-width:2px;
+    classDef edge fill:#D6EAF8,stroke:#2874A6,stroke-width:2px;
+    classDef app fill:#FADBD8,stroke:#C0392B,stroke-width:2px;
+    classDef ops fill:#E8DAEF,stroke:#7D3C98,stroke-width:2px;
+    classDef external fill:#F5F7FA,stroke:#555555,stroke-width:1px;
+
+    class DEV,GH src;
+    class GHA ci;
+    class CADDY edge;
+    class APP app;
+    class UKUMA,CLOUD ops;
+    class DNS,USER external;

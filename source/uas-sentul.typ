@@ -36,6 +36,23 @@
 
 Memverifikasi mahasiswa berhasil mendeploy aplikasi sederhana ke production (VPS) dengan domain HTTPS + CI/CD + monitoring, dan dapat melakukan diagnosis serta recovery ketika sistem mengalami gangguan operasional.
 
+= Arsitektur Sistem Target
+
+#align(center)[
+  #image("/typesetting/diagram/uas-arsitektur.png", width: 100%)
+]
+
+#v(2mm)
+
+Alur deployment dan operasi:
+
++ *Developer* mendorong commit ke `main` branch di *GitHub Repo*
++ *GitHub Actions* terpicu, build image + run tests + SSH ke VPS untuk `docker compose pull && up -d`
++ *User* mengakses domain via browser: DNS resolution → IP VPS → HTTPS ke *Caddy* → reverse proxy ke *App Container*
++ *Caddy* otomatis kelola SSL cert via Let's Encrypt (auto-renew)
++ *Uptime Kuma* (sibling container) polling endpoint setiap menit untuk uptime monitoring
++ Cron job harian backup data aplikasi ke *Cloud Storage* eksternal (S3/R2/B2)
+
 = Format
 
 #table(
