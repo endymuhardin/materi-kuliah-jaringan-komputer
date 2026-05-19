@@ -65,27 +65,16 @@ Saat hari H, semua VM di-revert ke `BASELINE` → konfigurasi network kosong, di
 
 = Topologi Target
 
-#raw(
-"        Internet (host laptop, NAT)
-              │
-        ┌─────────────┐
-        │ Router VM   │  eth0: NAT
-        │             │  + extra disk → /data (Tugas 1)
-   ┌────┤eth1     eth2├────┐
-   │    └─────────────┘    │
-   │                       │
-[Switch labA]         [Switch labB]
-192.168.10.0/24       192.168.20.0/24
-   │   │                 │   │
-  A1  A2                B1  B2
- .10 .11                .10 .11
+#align(center)[
+  #image("/typesetting/diagram/uts-topologi.png", width: 80%)
+]
 
-Special roles:
-- A1: DNS server (dnsmasq)
-- B1: HTTP server (nginx via systemd/openrc)
-- Fake domain: tugas.lab → A record points to B1",
-  block: true,
-)
+#v(2mm)
+
+*Catatan*:
+- Fake domain `tugas.lab` di-resolve oleh DNS server A1 (dnsmasq) ke IP B1
+- HTTP server di B1 (nginx) di-akses dari host LAN A via DNS resolution
+- Router melakukan NAT MASQUERADE untuk traffic dari LAN A/B keluar ke internet
 
 = Tugas — 9 Tugas Inti
 
