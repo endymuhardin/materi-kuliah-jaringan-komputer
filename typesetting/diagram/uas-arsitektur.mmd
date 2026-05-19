@@ -1,31 +1,29 @@
-graph LR
+flowchart LR
     DEV["<b>Developer</b><br/>laptop"]
-    GH["<b>GitHub Repo</b><br/>main branch<br/>+ workflow file"]
-    GHA["<b>GitHub Actions</b><br/>build, test,<br/>SSH deploy"]
+    GH["<b>GitHub Repo</b><br/>(main branch)"]
+    GHA["<b>GitHub Actions</b><br/>CI/CD"]
 
-    USER(["<b>User Browser</b>"])
-    DNS["<b>Domain DNS</b><br/>A record → VPS IP<br/>(Cloudflare/Namecheap)"]
+    DEV -->|git push| GH
+    GH -->|trigger| GHA
 
-    subgraph VPS["<b>VPS Server</b> (Hetzner/DigitalOcean/Linode)"]
+    subgraph VPS["VPS Server"]
         direction TB
-        CADDY["<b>Caddy</b><br/>Reverse Proxy<br/>+ Let's Encrypt SSL<br/>:443 :80"]
-        APP["<b>App Container</b><br/>ExpressJS / static<br/>(Docker Compose)"]
-        UKUMA["<b>Uptime Kuma</b><br/>Monitoring<br/>(sibling container)"]
-        CADDY -->|proxy_pass| APP
+        NGINX["<b>nginx</b><br/>:80, :443<br/>SSL via certbot"]
+        APP["<b>App Container</b><br/>(Docker Compose)"]
+        UKUMA["<b>Uptime Kuma</b><br/>monitoring"]
+        NGINX -->|proxy_pass| APP
+        UKUMA -.->|health check| NGINX
     end
 
-    CLOUD["<b>Cloud Storage</b><br/>S3 / R2 / B2<br/>(daily backup)"]
+    GHA -->|SSH deploy| VPS
 
-    DEV -->|git push main| GH
-    GH -->|trigger workflow| GHA
-    GHA -->|SSH + docker compose<br/>pull && up -d| VPS
+    DNS["<b>Domain DNS</b><br/>A record"]
+    USER(["<b>User Browser</b>"])
+    CLOUD["<b>Cloud Storage</b><br/>S3 / R2 / B2"]
 
-    USER -->|1\. resolve domain| DNS
-    DNS -.->|2\. returns VPS IP| USER
-    USER -->|3\. HTTPS request| CADDY
-
-    UKUMA -.->|HTTP health check| CADDY
-    APP -.->|cron daily<br/>pg_dump + rclone| CLOUD
+    USER -->|HTTPS request| NGINX
+    USER -.->|resolve domain| DNS
+    APP -.->|cron daily backup| CLOUD
 
     classDef src fill:#FFF3CD,stroke:#856404,stroke-width:2px;
     classDef ci fill:#D4EDDA,stroke:#155724,stroke-width:2px;
@@ -36,7 +34,7 @@ graph LR
 
     class DEV,GH src;
     class GHA ci;
-    class CADDY edge;
+    class NGINX edge;
     class APP app;
     class UKUMA,CLOUD ops;
     class DNS,USER external;

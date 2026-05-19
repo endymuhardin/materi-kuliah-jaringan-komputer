@@ -48,8 +48,8 @@ Alur deployment dan operasi:
 
 + *Developer* mendorong commit ke `main` branch di *GitHub Repo*
 + *GitHub Actions* terpicu, build image + run tests + SSH ke VPS untuk `docker compose pull && up -d`
-+ *User* mengakses domain via browser: DNS resolution → IP VPS → HTTPS ke *Caddy* → reverse proxy ke *App Container*
-+ *Caddy* otomatis kelola SSL cert via Let's Encrypt (auto-renew)
++ *User* mengakses domain via browser: DNS resolution → IP VPS → HTTPS ke *nginx* → reverse proxy ke *App Container*
++ *nginx* terkonfigurasi sebagai reverse proxy; SSL cert dikelola oleh *certbot* (Let's Encrypt) dengan auto-renew via systemd timer atau cron
 + *Uptime Kuma* (sibling container) polling endpoint setiap menit untuk uptime monitoring
 + Cron job harian backup data aplikasi ke *Cloud Storage* eksternal (S3/R2/B2)
 
@@ -72,7 +72,7 @@ Sebelum UAS, tiap kelompok harus memiliki:
 
 + *Domain aktif* dari sesi 5 (still active, paid through end of semester)
 + *Aplikasi sample* (single-file ExpressJS atau static HTML, AI-generated OK) di GitHub repo public
-+ *VPS deployment*: aplikasi running di VPS dengan domain → HTTPS via Caddy/Let's Encrypt
++ *VPS deployment*: aplikasi running di VPS dengan domain → HTTPS via nginx + certbot (Let's Encrypt)
 + *CI/CD pipeline*: push ke `main` branch → GitHub Actions → auto-deploy ke VPS
 + *Monitoring*: Uptime Kuma atau setara, dashboard accessible untuk demo
 + *Logging*: aplikasi tulis log terstruktur (stdout terbaca di journalctl atau docker logs)
@@ -131,7 +131,7 @@ Ini inti UAS dan ber-bobot tertinggi.
 Pertanyaan *harus berbasis artifact* kelompok, tidak abstrak. Dosen rotasi pertanyaan ke setiap anggota.
 
 Contoh pertanyaan grounded:
-- "Buka Caddyfile, tunjukkan baris yang handle reverse proxy ke aplikasi. Apa yang terjadi kalau baris itu dihapus?"
+- "Buka konfigurasi nginx di `/etc/nginx/sites-available/<domain>`, tunjukkan baris `proxy_pass` yang handle reverse proxy ke aplikasi. Apa yang terjadi kalau baris itu dihapus?"
 - "Buka workflow file di `.github/workflows/`. Jelaskan apa yang dilakukan step `deploy`."
 - "Tunjukkan log aplikasi pada saat kemarin pukul 14:00 lewat `journalctl` atau `docker logs`. Jelaskan request pattern yang terlihat."
 - "Kalau VPS hilang sekarang, langkah apa yang dilakukan? Tunjukkan runbook di README."
@@ -154,12 +154,12 @@ Dosen menyiapkan 8 amplop berisi instruksi fault. Tier difficulty dicampur supay
   fill: (col, row) => if row == 0 { header-bg },
   [*\#*], [*Tier*], [*Fault*], [*Dosen Action*], [*Expected Recovery*],
   [1], [Mudah], [Container app down], [SSH VPS, `docker compose stop app`], [`docker ps -a` → restart container, verify site up],
-  [2], [Mudah], [Reverse proxy salah port], [Edit Caddyfile upstream ke port salah, reload Caddy], [Tail Caddy log → fix Caddyfile → reload],
+  [2], [Mudah], [Reverse proxy salah port], [Edit `proxy_pass` di nginx config ke port salah, `nginx -s reload`], [Tail `/var/log/nginx/error.log` → fix proxy_pass → `nginx -t` → reload],
   [3], [Sedang], [Bad deploy via CI], [Dosen push commit dengan syntax error di app code], [Lihat CI failure log → `git revert` di main atau fix-forward],
   [4], [Sedang], [Firewall block], [`ufw deny 443` di VPS], [Coba browse → unreachable → `ufw status` → `ufw allow 443`],
   [5], [Sedang], [Disk full], [`dd if=/dev/zero of=/var/log/junk bs=1M count=5000`], [`df -h` → identify junk → delete → restart affected services],
   [6], [Sulit], [DNS pointing wrong], [Ubah A record di registrar ke IP garbage], [`dig <domain>` → recognize DNS issue → fix di registrar dashboard],
-  [7], [Sulit], [Cert renewal broken], [`mv /etc/letsencrypt/live/<domain> /tmp/` di VPS, reload Caddy], [Caddy log shows missing cert → re-issue via certbot atau Caddy auto],
+  [7], [Sulit], [Cert renewal broken], [`mv /etc/letsencrypt/live/<domain> /tmp/` di VPS, `nginx -s reload`], [nginx error log shows missing cert → `certbot --nginx -d <domain>` untuk re-issue → reload],
   [8], [Sulit], [App env var corrupted], [Edit `.env` di VPS, ubah variable penting (DB conn string atau API key)], [App log shows error → identify env var → fix `.env` → restart container],
 )
 
@@ -263,7 +263,7 @@ Materi UAS ini menyentuh subset objective LPI DevOps Tools Engineer (exam 010-16
   [701.4], [CI/CD], [Demo CI/CD live + presentation],
   [702.1], [Container Usage], [Demo working system (docker compose)],
   [702.2], [Container Deployment and Orchestration], [Demo (compose, single-host orchestration)],
-  [702.3], [Container Infrastructure], [Demo (Caddy ingress, image registry concept)],
+  [702.3], [Container Infrastructure], [Demo (nginx ingress, image registry concept)],
   [703.1], [Cloud Deployment], [Demo (VPS-as-cloud, scaling consideration di Q&A)],
   [703.2], [System Image Creation], [Tidak langsung di UAS — Dockerfile dibuat di sesi 10],
   [704.x], [Configuration Management Tools (Ansible)], [*Gap* — tidak dipakai di kurikulum ini],
