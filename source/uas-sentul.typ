@@ -46,12 +46,12 @@ Memverifikasi mahasiswa berhasil mendeploy aplikasi sederhana ke production (VPS
 
 Alur deployment dan operasi:
 
-+ *Developer* mendorong commit ke `main` branch di *GitHub Repo*
-+ *GitHub Actions* terpicu, build image + run tests + SSH ke VPS untuk `docker compose pull && up -d`
++ *Developer* melakukan `git push` ke `main` branch di *GitHub Repo*
++ *GitHub Actions* otomatis berjalan: build image + run tests + SSH ke VPS untuk `docker compose pull && up -d`
 + *User* mengakses domain via browser: DNS resolution → IP VPS → HTTPS ke *nginx* → reverse proxy ke *App Container*
 + *nginx* terkonfigurasi sebagai reverse proxy; SSL cert dikelola oleh *certbot* (Let's Encrypt) dengan auto-renew via systemd timer atau cron
 + *Uptime Kuma* (sibling container) polling endpoint setiap menit untuk uptime monitoring
-+ Cron job harian backup data aplikasi ke *Cloud Storage* eksternal (S3/R2/B2)
++ Cron job menjalankan backup data aplikasi setiap hari ke *Cloud Storage* eksternal (S3/R2/B2)
 
 = Format
 
@@ -137,7 +137,7 @@ Contoh pertanyaan grounded:
 - "Kalau VPS hilang sekarang, langkah apa yang dilakukan? Tunjukkan runbook di README."
 - "Buka file `.env` di VPS, jelaskan setiap variable. Mana yang sensitif dan kenapa?"
 
-*Pertanyaan terlarang* (mendorong AI MITM):
+*Pertanyaan terlarang* (memancing AI MITM):
 - "Apa itu CI/CD?" (definisi abstrak)
 - "Jelaskan perbedaan continuous delivery vs continuous deployment" (memori konsep)
 - "Best practices untuk monitoring adalah..." (textbook answer)
