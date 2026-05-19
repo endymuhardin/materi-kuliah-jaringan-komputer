@@ -1,4 +1,4 @@
-# Materi Kuliah 2025 — Jaringan Komputer (Sentul)
+# Materi Kuliah — Jaringan Komputer (Sentul)
 
 Materi ujian formal untuk kelas gabungan Sentul, mencakup dua mata kuliah secara terintegrasi:
 - **MITI.202** Sistem Operasi (Teknik Informatika)
