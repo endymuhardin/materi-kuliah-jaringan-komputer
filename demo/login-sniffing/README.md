@@ -1,10 +1,10 @@
 # Demo Login — Packet Sniffing
 
-Aplikasi login HTTP plaintext untuk demonstrasi packet sniffing. Tujuannya menunjukkan bahwa form login yang dikirim via HTTP (bukan HTTPS) bisa dibaca apa adanya oleh siapa pun yang dapat melihat paket di network path.
+Aplikasi login HTTP biasa (tanpa TLS) untuk demo packet sniffing. Tujuannya: menunjukkan bahwa form login yang dikirim lewat HTTP gampang dibaca oleh siapa pun yang bisa melihat lalu lintas paket di jalurnya.
 
 ## Stack
 
-Vanilla Node.js, tanpa dependency. Hanya butuh Node.js 18+.
+Vanilla Node.js, tanpa dependency. Cukup Node.js 18+.
 
 ## Jalankan server
 
@@ -12,35 +12,35 @@ Vanilla Node.js, tanpa dependency. Hanya butuh Node.js 18+.
 node server.js
 ```
 
-Server listen di `http://0.0.0.0:3000`. Akses dari browser: `http://localhost:3000/login` (atau dari mahasiswa lain di LAN: `http://<ip-laptop-dosen>:3000/login`).
+Server akan listen di `http://0.0.0.0:3000`. Akses dari browser: `http://localhost:3000/login`, atau dari laptop lain di LAN: `http://<ip-laptop-dosen>:3000/login`.
 
-Akun demo:
+Akun untuk demo:
 - `admin` / `rahasia123`
 - `mahasiswa` / `network2026`
 
-Login salah/benar sama-sama menampilkan halaman hasil yang juga me-echo body POST — jadi mahasiswa langsung lihat data yang dikirim.
+Login berhasil maupun gagal sama-sama menampilkan halaman hasil yang juga mencetak ulang isi body POST — jadi mahasiswa langsung lihat data apa saja yang baru saja dikirim.
 
-## Tools untuk capture
+## Pilihan tool capture
 
-Tiga alternatif perintah sniffing. Tinggal sesuaikan `-i <interface>` per skenario topologi di bawah.
+Tiga tool untuk sniffing. Cukup pilih salah satu, ganti `-i <interface>` sesuai skenario di bawah.
 
-### tcpdump (text dump)
+### tcpdump (output teks di terminal)
 
 ```sh
 sudo tcpdump -i <iface> -A -s 0 -nn 'tcp port 3000'
 ```
 
-Filter agar hanya paket dengan payload (skip handshake/ACK kosong):
+Filter agar hanya paket yang ada payload-nya (skip handshake dan ACK kosong):
 
 ```sh
 sudo tcpdump -i <iface> -A -s 0 -nn 'tcp port 3000 and (((ip[2:2] - ((ip[0]&0xf)<<2)) - ((tcp[12]&0xf0)>>2)) != 0)'
 ```
 
-### Wireshark (GUI, paling jelas untuk demo kelas)
+### Wireshark (GUI, paling enak untuk demo kelas)
 
-1. Start capture pada interface yang sesuai (lihat skenario).
+1. Mulai capture pada interface yang sesuai (lihat skenario di bawah).
 2. Display filter: `tcp.port == 3000 and http.request.method == POST`
-3. Pilih paket POST → Right-click → **Follow → HTTP Stream** → username dan password tampak utuh.
+3. Klik kanan pada paket POST → **Follow → HTTP Stream** → username dan password kelihatan utuh.
 
 ### ngrep (one-liner cepat)
 
@@ -48,15 +48,15 @@ sudo tcpdump -i <iface> -A -s 0 -nn 'tcp port 3000 and (((ip[2:2] - ((ip[0]&0xf)
 sudo ngrep -d <iface> -W byline 'username|password' port 3000
 ```
 
-## Skenario topologi 3-komputer
+## Lima skenario topologi 3-komputer
 
-Lima konfigurasi tergantung peralatan dan tujuan pembelajaran. Peran tetap: **A = server**, **B = browser client**, **C = sniffer/monitor**.
+Konfigurasi yang dipilih tergantung peralatan dan tujuan pembelajaran. Peran tetap: **A = server**, **B = browser client**, **C = sniffer**.
 
 ---
 
-### Skenario 0 — Sniffer co-located dengan server atau client
+### Skenario 0 — Sniffer satu komputer dengan server atau client
 
-Tidak butuh komputer ke-3. Komputer A (server) sekaligus menjalankan tcpdump. Tujuan: pembuktian konsep cepat sebelum ke setup multi-komputer.
+Tidak butuh komputer ketiga. Komputer A (server) sekaligus menjalankan tcpdump. Gunanya untuk membuktikan konsep dasarnya sebelum mahasiswa pusing dengan setup multi-komputer.
 
 ```mermaid
 flowchart LR
@@ -66,12 +66,12 @@ flowchart LR
         server["Node server :3000"]
         sniff["tcpdump -i any"]
         nic --> server
-        nic -. mirror lokal .-> sniff
+        nic -. salinan lokal .-> sniff
     end
     B == HTTP plaintext ==> nic
 ```
 
-**Run di A:**
+**Di komputer A:**
 ```sh
 # Terminal 1
 node server.js
@@ -80,17 +80,17 @@ node server.js
 sudo tcpdump -i any -A -s 0 -nn 'tcp port 3000'
 ```
 
-B akses `http://<IP-A>:3000/login`, sniff log muncul real-time di terminal 2.
+B membuka `http://<IP-A>:3000/login`, log sniff langsung muncul di terminal 2.
 
-Variasi paling minimal: A juga jadi B (browser localhost di komputer yang sama, sniff interface `lo`) — paling cepat tapi paling "buatan" karena traffic tidak benar-benar lewat network fisik. Bagus untuk demo step-by-step tcpdump output sebelum lanjut ke setup multi-komputer.
+Variasi paling minimal: A sekaligus jadi B (browser ke `localhost` di komputer yang sama, sniff interface `lo`). Paling cepat di-setup, tapi paling artifisial — paketnya tidak benar-benar lewat network fisik. Cocok sebagai pemanasan untuk membaca output tcpdump sebelum lanjut ke setup multi-komputer.
 
-**Pendidikan**: bukti konsep bahwa HTTP body terbaca penuh. **Realism**: rendah — di dunia nyata attacker bukan pemilik server/client.
+**Edukasi**: bukti bahwa isi body HTTP terbaca penuh. **Realisme**: rendah, karena di dunia nyata penyerang bukan pemilik server atau client.
 
 ---
 
-### Skenario 1 — C jadi hotspot router
+### Skenario 1 — C menjadi hotspot router
 
-C membuat WiFi hotspot. A dan B keduanya connect ke hotspot C. Karena C adalah router fisik untuk subnet hotspot, semua traffic A↔B mengalir lewat C secara hardware-level — tidak butuh ARP trick.
+C membuat WiFi hotspot. A dan B sama-sama connect ke hotspot itu. Karena C bertindak sebagai router fisik untuk subnet hotspot, seluruh trafik A↔B otomatis melewati C — tidak perlu trik ARP apa pun.
 
 ```mermaid
 flowchart LR
@@ -99,16 +99,16 @@ flowchart LR
     subgraph C["Komputer C — Hotspot Router + Sniffer"]
         hs["WiFi hotspot<br/>iface: bridge100 / ap0"]
         td["tcpdump"]
-        hs -. semua traffic .-> td
+        hs -. seluruh trafik .-> td
     end
     A <== WiFi ==> hs
     B <== WiFi ==> hs
 ```
 
-**Setup hotspot di C:**
+**Bikin hotspot di C:**
 
-- **macOS**: System Settings → General → Sharing → Internet Sharing. From: koneksi existing (WiFi/Ethernet). To: Wi-Fi. SSID = `DemoSniff`, Security: **None (open)**. Interface yang muncul biasanya `bridge100`.
-- **Linux**: `sudo apt install -y linux-wifi-hotspot` lalu `sudo create_ap wlan0 eth0 DemoSniff` (open) atau `sudo create_ap wlan0 eth0 DemoSniff <password>` (WPA2).
+- **macOS**: System Settings → General → Sharing → Internet Sharing. From: koneksi yang sudah ada (WiFi/Ethernet). To: Wi-Fi. SSID = `DemoSniff`, Security: **None (open)**. Interface yang muncul biasanya `bridge100`.
+- **Linux**: `sudo apt install -y linux-wifi-hotspot`, lalu `sudo create_ap wlan0 eth0 DemoSniff` (terbuka) atau `sudo create_ap wlan0 eth0 DemoSniff <password>` (WPA2).
 
 **Sniff di C:**
 ```sh
@@ -116,17 +116,17 @@ sudo tcpdump -i bridge100 -A -s 0 -nn 'tcp port 3000'
 # Linux: -i ap0
 ```
 
-A dan B connect ke SSID `DemoSniff`. A jalankan server. B browser ke `http://<IP-A-di-hotspot>:3000/login`. C lihat 100% traffic.
+A dan B connect ke SSID `DemoSniff`. A menjalankan server. B membuka `http://<IP-A-di-hotspot>:3000/login`. C melihat 100% trafiknya.
 
-**Saran pakai hotspot tanpa password (open)** supaya tidak ada WPA2 encryption yang menyamarkan apa pun di air — kelas langsung melihat plaintext mentah. Skenario ini mensimulasikan "rogue WiFi hotspot di cafe": attacker buat hotspot palsu dengan SSID mirip, korban connect, attacker sniff semua.
+**Sebaiknya hotspot dibuat tanpa password** (terbuka) supaya tidak ada enkripsi WPA2 yang menyamarkan apa-apa di udara — mahasiswa langsung melihat plaintext mentah di tcpdump. Skenario ini mensimulasikan rogue hotspot di kafe: penyerang bikin hotspot palsu dengan SSID mirip yang asli, korban iseng nyambung, penyerang ambil semua.
 
-**Pendidikan**: hotspot owner = visibility owner. **Realism**: tinggi untuk skenario rogue hotspot, evil twin AP, captive portal palsu di public space.
+**Edukasi**: yang punya hotspot punya semua visibilitas. **Realisme**: tinggi untuk skenario rogue hotspot, evil twin AP, atau captive portal palsu di tempat umum.
 
 ---
 
-### Skenario 2 — Passive monitor mode di open WiFi
+### Skenario 2 — Passive monitor mode di WiFi terbuka
 
-WiFi terbuka tanpa enkripsi (Security: None — seperti cafe, hotel, bandara, beberapa lab kampus). C tidak menjadi router, tidak melakukan ARP spoof, tidak intervensi apa pun di traffic A↔B. Cukup pasif menangkap radio frame di air. Karena WiFi unencrypted, frame body 802.11 langsung terbaca tanpa perlu derive session key.
+WiFi tanpa enkripsi (Security: None — seperti di kafe, hotel, bandara, sebagian lab kampus). C tidak jadi router, tidak ARP spoof, tidak mengganggu trafik A↔B sama sekali. Cukup duduk diam dan menangkap frame radio dari udara. Karena WiFi-nya tidak terenkripsi, isi frame 802.11 langsung terbaca tanpa perlu menurunkan session key dari handshake.
 
 ```mermaid
 flowchart LR
@@ -134,85 +134,85 @@ flowchart LR
     A["A — Server :3000"]
     B["B — Browser"]
     C["C — Passive Sniffer<br/>WiFi card RFMON / monitor mode"]
-    A <-. WiFi data .-> AP
-    B <-. WiFi data .-> AP
-    AP -. radio broadcast<br/>semua frame di air .-> C
+    A <-. trafik WiFi .-> AP
+    B <-. trafik WiFi .-> AP
+    AP -. siaran radio<br/>semua frame di udara .-> C
 ```
 
-C tidak terhubung ke AP secara aktif (tidak associate) — hanya men-tune ke channel yang sama dengan A dan B, lalu menerima semua frame. AP/router tidak tahu C sedang menyadap, tidak ada record di log AP.
+C tidak melakukan associate ke AP — cukup men-tune kartu WiFi ke channel yang dipakai A dan B, lalu menerima semua frame yang lewat. Tidak ada catatan di log AP, korban tidak tahu sedang disadap.
 
-**Cek WiFi current security (macOS):**
+**Cek WiFi yang sedang dipakai (macOS):**
 ```sh
 system_profiler SPAirPortDataType | grep -A 5 "Current Network"
-# Lihat baris "Security:". "None" = open, ideal untuk skenario ini.
+# Lihat baris "Security:". Kalau "None", berarti terbuka — pas untuk skenario ini.
 ```
 
 **Setup C di macOS:**
 ```sh
-# Cara modern: tcpdump dengan flag -I (monitor mode)
+# Cara yang masih jalan di macOS modern: tcpdump -I
 sudo tcpdump -I -i en0 -w open-wifi-capture.pcap
 
-# Buka hasil di Wireshark setelah selesai capture:
+# Buka hasilnya di Wireshark setelah selesai capture:
 wireshark open-wifi-capture.pcap
 # Display filter: tcp.port == 3000 and http.request.method == POST
 ```
 
-Atau live di Wireshark (macOS):
+Atau langsung dari Wireshark di macOS:
 - Capture Options → pilih interface `en0` → centang **Capture packets in monitor mode** → Start.
 
 **Setup C di Linux:**
 ```sh
 sudo apt install -y aircrack-ng
 
-# Aktifkan monitor mode pada wlan0 → buat wlan0mon
-sudo airmon-ng check kill        # matikan NetworkManager/wpa_supplicant yang bisa interfere
+# Aktifkan monitor mode di wlan0 → muncul interface baru wlan0mon
+sudo airmon-ng check kill        # matikan NetworkManager/wpa_supplicant yang bisa mengganggu
 sudo airmon-ng start wlan0
 
-# Pastikan channel match dengan AP target (cek system_profiler / iw)
+# Samakan channel dengan AP target (cek dari system_profiler atau iw)
 sudo iw dev wlan0mon set channel 36
 
 sudo tcpdump -i wlan0mon -A -s 0 'tcp port 3000'
-# atau
-sudo wireshark   # pilih wlan0mon interface
+# atau buka Wireshark, pilih wlan0mon
+sudo wireshark
 ```
 
-**Caveat:**
-- **Card harus support monitor mode / RFMON**. Sebagian besar built-in macOS WiFi card OK. Untuk Linux/Windows: chipset yang umum support: Atheros AR9271, Ralink RT3070/RT5572, Realtek RTL8812AU. Adapter populer: Alfa AWUS036NHA, AWUS036ACH, Panda PAU09.
-- **macOS quirk**: saat tcpdump `-I` aktif di card yang sedang ter-associate, biasanya WiFi otomatis disconnect. Workaround: pakai USB WiFi adapter kedua khusus untuk sniff, atau accept connection drop selama capture.
-- **Channel locking**: WiFi adapter hanya capture satu channel pada satu waktu. Kalau A/B di channel berbeda dari yang dipantau, tidak akan terlihat. Channel hopping (`airodump-ng` auto-hop) bisa, tapi loss frame saat hop.
-- **SIP / permission macOS Sonoma+**: monitor mode butuh hak khusus. Kalau gagal, jalankan dari Terminal dengan **Full Disk Access** di System Settings → Privacy & Security.
-- **WPA2/WPA3 di AP yang sama**: kalau WiFi terenkripsi, frame masih bisa dicapture, tapi body terenkripsi. Decrypt butuh capture EAPOL 4-way handshake + tahu PSK, lalu Wireshark Preferences → Protocols → IEEE 802.11 → Edit Decryption Keys.
+**Hal-hal yang sering jadi masalah:**
+- **Kartu wajib mendukung monitor mode (RFMON)**. Sebagian besar kartu WiFi bawaan macOS aman. Untuk Linux/Windows, chipset yang umumnya jalan: Atheros AR9271, Ralink RT3070/RT5572, Realtek RTL8812AU. Adapter populer: Alfa AWUS036NHA, AWUS036ACH, Panda PAU09.
+- **Quirk macOS**: begitu `tcpdump -I` aktif di kartu yang sedang terhubung ke WiFi, biasanya koneksi WiFi langsung putus. Solusinya: pakai USB WiFi adapter kedua khusus untuk sniff, atau terima saja koneksi putus selama capture berjalan.
+- **Satu waktu satu channel**: kartu WiFi hanya bisa memantau satu channel. Kalau A/B ternyata di channel lain, mereka tidak akan kelihatan. Channel hopping (`airodump-ng` mode auto-hop) bisa dipakai, tapi sebagian frame akan terlewat saat berpindah.
+- **Permission macOS Sonoma ke atas**: monitor mode butuh hak akses khusus. Kalau perintahnya gagal, jalankan Terminal dengan **Full Disk Access** dari System Settings → Privacy & Security.
+- **Kalau AP-nya pakai WPA2/WPA3**: frame tetap bisa di-capture, tapi isinya terenkripsi. Untuk membuka isinya, tangkap dulu EAPOL 4-way handshake (saat client connect/reconnect), lalu masukkan PSK di Wireshark Preferences → Protocols → IEEE 802.11 → Edit Decryption Keys.
 
-**Pendidikan**: paling jelas memperlihatkan kenapa open WiFi tanpa HTTPS adalah disaster — sniff bersifat **pasif total**, tidak meninggalkan jejak di log AP/server/client. Korban tidak punya cara untuk tahu sedang disadap. **Realism**: paling tinggi untuk skenario open WiFi (cafe, public hotspot, captive portal yang belum auth).
+**Edukasi**: paling jelas memperlihatkan kenapa kombinasi WiFi terbuka + HTTP itu sangat rawan — sniff-nya benar-benar pasif, tidak meninggalkan jejak di mana pun. Korban tidak punya cara untuk sadar sedang disadap. **Realisme**: paling tinggi untuk skenario WiFi terbuka (kafe, public hotspot, captive portal yang belum login).
 
 ---
 
 ### Skenario 3 — ARP spoofing di LAN yang sama
 
-A, B, C semuanya client di WiFi/LAN yang sama (open atau terenkripsi). C meracun ARP cache B supaya paket B yang seharusnya ke A (atau ke gateway) belok lewat MAC C dulu — classic MITM attack via Layer 2. Berbeda dari Skenario 2, ini **aktif** — meninggalkan jejak ARP table mencurigakan di B.
+A, B, dan C semuanya client di WiFi/LAN yang sama, terbuka maupun terenkripsi. C meracuni cache ARP di B sehingga paket B yang seharusnya ke A (atau ke gateway) belok dulu lewat MAC milik C — MITM klasik di Layer 2. Beda dengan Skenario 2, ini bersifat **aktif** dan meninggalkan jejak di tabel ARP B yang kalau diperiksa terlihat mencurigakan.
 
 ```mermaid
 flowchart LR
     GW["Gateway/Router"]
     A["A — Server :3000"]
     B["B — Browser"]
-    C["C — Attacker<br/>arpspoof + tcpdump"]
+    C["C — Penyerang<br/>arpspoof + tcpdump"]
     GW --- A
     GW --- B
     GW --- C
-    B -- "POST /login<br/>(B kira tujuan A,<br/>tapi MAC = C)" --> C
-    C -- "forward ke A asli" --> A
-    A -- "response" --> C
-    C -- "forward ke B" --> B
+    B -- "POST /login<br/>(B kira tujuannya A,<br/>tapi MAC = C)" --> C
+    C -- "diteruskan ke A asli" --> A
+    A -- "balasan" --> C
+    C -- "diteruskan ke B" --> B
 ```
 
-**Setup C** (Linux/macOS) — pakai `bettercap` (paling rapi):
+**Setup C** (Linux/macOS) — pakai `bettercap`, paling rapi:
 ```sh
 brew install bettercap            # macOS
 sudo apt install -y bettercap     # Linux
 
 sudo bettercap -iface wlan0
-# di interactive prompt:
+# di prompt interaktif:
 > set arp.spoof.targets <IP-B>
 > set arp.spoof.fullduplex true
 > arp.spoof on
@@ -221,34 +221,34 @@ sudo bettercap -iface wlan0
 > net.sniff on
 ```
 
-Atau pasangan klasik:
+Atau pakai cara klasik:
 ```sh
-# Terminal 1 — aktifkan forwarding (kalau tidak, traffic B akan drop)
+# Terminal 1 — aktifkan IP forwarding, kalau tidak trafik B akan drop
 sudo sysctl -w net.ipv4.ip_forward=1
-# Linux. macOS: sudo sysctl -w net.inet.ip.forwarding=1
+# Linux. Untuk macOS: sudo sysctl -w net.inet.ip.forwarding=1
 
-# Terminal 2 — spoof B → A jadi via C
+# Terminal 2 — bilang ke B bahwa A ada di MAC C
 sudo arpspoof -i wlan0 -t <IP-B> <IP-A>
 
-# Terminal 3 — spoof A → B jadi via C (bidirectional)
+# Terminal 3 — bilang ke A bahwa B ada di MAC C (dua arah)
 sudo arpspoof -i wlan0 -t <IP-A> <IP-B>
 
 # Terminal 4 — capture
 sudo tcpdump -i wlan0 -A -s 0 -nn host <IP-B> and tcp port 3000
 ```
 
-**Caveat:**
-- Banyak router rumah/kantor mengaktifkan **AP isolation / client isolation** → traffic antar client di-block → ARP spoof tidak akan tembus. Test dulu `ping <IP-B>` dari C: kalau tidak balas, isolation aktif.
-- Kalau A bukan di subnet sama (akses lewat gateway), C spoof IP gateway saja sudah cukup untuk MITM traffic keluar B.
-- Kartu WiFi C harus support promiscuous capture untuk verifikasi. macOS native WiFi card OK; sebagian USB adapter butuh driver khusus.
+**Yang sering bikin gagal:**
+- Banyak router rumah/kantor mengaktifkan **AP isolation / client isolation** → trafik antar client diblokir → ARP spoof tidak akan tembus. Tes dulu dari C: `ping <IP-B>`. Kalau tidak ada jawaban, berarti isolation sedang aktif.
+- Kalau A bukan di subnet yang sama dan diakses lewat gateway, cukup C melakukan spoof ke IP gateway saja — sudah cukup untuk MITM trafik keluar dari B.
+- Kartu WiFi C harus mendukung promiscuous capture untuk verifikasi. Kartu bawaan macOS aman; sebagian USB adapter butuh driver tambahan.
 
-**Pendidikan**: di public WiFi (cafe, bandara, hotel) yang terenkripsi sekalipun, peer di WiFi sama bisa MITM via ARP layer 2 — enkripsi WiFi melindungi air, bukan antar client di LAN sama. Inti pelajaran kenapa HTTPS bukan optional. **Realism**: tinggi — exact scenario di dunia nyata pada network yang tidak ada client isolation + DAI.
+**Edukasi**: di WiFi publik (kafe, bandara, hotel) yang terenkripsi sekalipun, sesama client masih bisa di-MITM lewat ARP karena enkripsi WiFi hanya melindungi udara, bukan komunikasi antar client di LAN yang sama. Ini inti pelajaran kenapa HTTPS tidak boleh opsional. **Realisme**: tinggi — persis seperti di dunia nyata pada jaringan yang belum mengaktifkan client isolation atau Dynamic ARP Inspection.
 
 ---
 
-### Skenario 4 — Port mirroring di managed switch
+### Skenario 4 — Port mirror di managed switch
 
-Switch L2 dengan dukungan SPAN/RSPAN. Admin men-config switch supaya traffic di port A (dan/atau B) di-duplikasi ke port C. C colok ke port mirror, sniff seperti biasa — visibility tanpa intervensi traffic path.
+Switch L2 dengan dukungan SPAN/RSPAN. Admin mengatur switch supaya trafik di port A (dan/atau B) di-duplikasi ke port lain tempat C nyolok. C lalu sniff seperti biasa — dapat visibilitas penuh tanpa mengubah jalur trafiknya.
 
 ```mermaid
 flowchart LR
@@ -258,16 +258,16 @@ flowchart LR
     subgraph SW["Managed Switch (SPAN aktif)"]
         p1["port 1"]
         p2["port 2"]
-        pM["port 24<br/>(mirror destination)"]
+        pM["port 24<br/>(tujuan mirror)"]
     end
     A --- p1
     B --- p2
     C --- pM
-    p1 -. mirrored .-> pM
-    p2 -. mirrored .-> pM
+    p1 -. di-mirror .-> pM
+    p2 -. di-mirror .-> pM
 ```
 
-**Switch config sample (Cisco IOS):**
+**Contoh konfigurasi switch (Cisco IOS):**
 ```
 monitor session 1 source interface Gi0/1 both
 monitor session 1 source interface Gi0/2 both
@@ -279,186 +279,187 @@ monitor session 1 destination interface Gi0/24
 sudo tcpdump -i eth0 -A -s 0 -nn 'tcp port 3000'
 ```
 
-**Caveat:**
-- Tidak realistic untuk demo kelas — managed switch dengan SPAN tidak ada di lab biasa.
-- Penting disebut karena: ini cara legitimate IDS/IPS/NPM (Splunk, Suricata, Zeek, ntopng) deploy di production. Mirror port = visibility full-fidelity tanpa mengubah path traffic produksi.
-- Variasi hardware: **network TAP** = splitter fisik (optical/copper) yang lebih reliable dari SPAN karena tidak shared switch CPU. Dipakai di datacenter forensics dan compliance monitoring (PCI-DSS, HIPAA).
+**Catatan:**
+- Tidak realistis untuk demo kelas — managed switch dengan SPAN umumnya tidak ada di lab biasa.
+- Tetap penting disebut karena begini cara IDS/IPS/NPM legitimate (Splunk, Suricata, Zeek, ntopng) dipasang di production. Mirror port = visibilitas penuh tanpa mengubah jalur trafik produksi.
+- Variasi hardware: **network TAP** = splitter fisik (optical/copper) yang lebih reliable dibanding SPAN karena tidak ikut membebani CPU switch. Dipakai di forensics datacenter dan kepatuhan PCI-DSS/HIPAA.
 
-**Pendidikan**: visibility legitimate untuk operasional/security ops, bukan attack. **Realism**: tinggi untuk skenario enterprise; rendah untuk demo kelas (perlu peralatan).
+**Edukasi**: visibilitas legitimate untuk operasional/security ops, bukan untuk menyerang. **Realisme**: tinggi di lingkungan enterprise; rendah untuk demo kelas karena butuh peralatan.
 
 ---
 
-## Menjalankan C sebagai VirtualBox VM di Windows host (target: laptop mahasiswa)
+## C sebagai VirtualBox VM di Windows host (setup mahasiswa)
 
-Setup target: **Windows laptop + VirtualBox + Ubuntu VM**. Mahasiswa pakai Ubuntu VM sebagai komputer C (sniffer) karena Linux punya tooling sniff yang jauh lebih lengkap (airmon-ng, bettercap, ettercap, tcpdump native, Wireshark) dan permission model yang straightforward dibanding Windows host.
+Setup yang dipakai mahasiswa: **laptop Windows + VirtualBox + Ubuntu VM**. Komputer C (sniffer) dijalankan sebagai Ubuntu VM karena tooling sniff di Linux jauh lebih lengkap (airmon-ng, bettercap, ettercap, tcpdump bawaan, Wireshark) dan permission-nya jauh lebih simpel dibanding di Windows.
 
-Bridge mode = VM mendapat IP DHCP sendiri di LAN, terlihat sebagai peer device terpisah dari Windows host. Dari sudut pandang WiFi router: VM dan Windows host adalah dua machine berbeda.
+Bridge mode = VM dapat IP DHCP sendiri di LAN, dan dari sudut pandang WiFi router VM terlihat sebagai perangkat terpisah dari Windows host-nya.
 
-### Prasyarat di Windows host
+### Yang harus disiapkan di Windows
 
-1. **VirtualBox** terinstal (versi terbaru, minimum 7.0).
-2. **VirtualBox Extension Pack** terinstal (gratis untuk educational use) — wajib untuk USB 2.0/3.0 passthrough dan dukungan USB filter. Download: `https://www.virtualbox.org/wiki/Downloads`. Setelah download `.vbox-extpack`, double-click untuk install.
-3. Verifikasi extension pack: VirtualBox → File → Tools → Extension Pack Manager. Harus tampak "Oracle VM VirtualBox Extension Pack".
-4. **Ubuntu VM** sudah dibuat (Desktop atau Server, minimum 22.04 LTS).
+1. **VirtualBox** versi terbaru (minimal 7.0).
+2. **VirtualBox Extension Pack** (gratis untuk pemakaian edukasi) — wajib supaya USB 2.0/3.0 passthrough dan filter USB bisa jalan. Download dari `https://www.virtualbox.org/wiki/Downloads`, dobel klik file `.vbox-extpack`-nya untuk install.
+3. Cek pemasangannya: VirtualBox → File → Tools → Extension Pack Manager. Harus muncul "Oracle VM VirtualBox Extension Pack".
+4. **Ubuntu VM** sudah jadi (Desktop atau Server, minimal 22.04 LTS).
 
-### Setup bridge mode di VirtualBox (Windows host)
+### Set bridge mode di VirtualBox (Windows host)
 
-1. Power off VM.
+1. Matikan VM.
 2. Pilih VM di VirtualBox Manager → klik **Settings**.
 3. **Network → Adapter 1**:
    - **Enable Network Adapter**: ✓
    - **Attached to**: `Bridged Adapter`
-   - **Name**: pilih interface WiFi Windows host (contoh: `Intel(R) Wi-Fi 6 AX201 160MHz`). Daftar interface diambil dari driver Windows.
+   - **Name**: pilih interface WiFi Windows host (misal `Intel(R) Wi-Fi 6 AX201 160MHz`). Daftarnya diambil VirtualBox dari driver Windows.
    - **Advanced**:
-     - **Adapter Type**: `Intel PRO/1000 MT Desktop` (default OK)
-     - **Promiscuous Mode**: `Allow All` (wajib untuk Skenario 3 ARP spoof — supaya VM bisa terima frame yang bukan untuk MAC-nya)
+     - **Adapter Type**: biarkan default `Intel PRO/1000 MT Desktop`.
+     - **Promiscuous Mode**: `Allow All`. Ini wajib supaya VM bisa menerima frame yang bukan ditujukan ke MAC-nya (penting untuk Skenario 3).
      - **Cable Connected**: ✓
-4. **OK** untuk save.
-5. Start VM. Login ke Ubuntu. Buka terminal:
+4. Klik **OK** untuk menyimpan.
+5. Nyalakan VM, login ke Ubuntu, buka terminal:
    ```sh
-   ip addr show                  # cek IP via DHCP
+   ip addr show                  # cek IP dari DHCP
    ip route show                 # cek default gateway
-   ping <IP-Windows-host>        # konfirmasi konektivitas
-   ping 8.8.8.8                  # konfirmasi internet
+   ping <IP-Windows-host>        # pastikan tembus ke host
+   ping 8.8.8.8                  # pastikan internet jalan
    ```
 
-VM sekarang punya IP di subnet WiFi LAN yang sama dengan Windows host, dan bisa dijangkau dari laptop lain di LAN.
+VM sekarang sudah punya IP di subnet WiFi LAN yang sama dengan Windows host, dan bisa dijangkau dari laptop lain di LAN itu.
 
 ### Install tooling di Ubuntu VM
 
 ```sh
 sudo apt update
 sudo apt install -y tcpdump wireshark ngrep aircrack-ng bettercap dsniff iproute2
-# dsniff menyediakan arpspoof, aircrack-ng menyediakan airmon-ng/airodump-ng
+# dsniff = paket yang berisi arpspoof, aircrack-ng = airmon-ng/airodump-ng
 ```
 
-Saat install wireshark akan ada prompt "Should non-superusers be able to capture packets?" — pilih **Yes** supaya tidak perlu sudo. Logout-login lagi setelah:
+Saat install Wireshark akan ada pertanyaan "Should non-superusers be able to capture packets?" — pilih **Yes** supaya nanti tidak perlu sudo. Setelah itu:
 ```sh
 sudo usermod -aG wireshark $USER
 ```
+Logout lalu login lagi supaya keanggotaan grup-nya aktif.
 
 ### Skenario mana yang bisa dari Ubuntu VM bridge mode (Windows host)
 
-| Skenario | VM bridge cukup? | Catatan untuk Windows + Ubuntu VM |
+| Skenario | Cukup bridge mode? | Catatan |
 |---|---|---|
-| 0 — co-located | YA | VM jalankan server (`node server.js`) + sniff `enp0s3` di VM. Akses dari browser host Windows: `http://<IP-VM>:3000`. |
-| 1 — C jadi hotspot | TIDAK | Hotspot butuh WiFi card AP mode → bridged virtual NIC tidak bisa. Solusi: USB passthrough adapter WiFi yang support AP mode. |
-| 2 — passive monitor open WiFi | TIDAK (lewat onboard WiFi) | VirtualBox bridge ke onboard WiFi hanya forward Ethernet frame ke VM, bukan radio frame 802.11. Solusi: USB passthrough adapter yang support monitor mode. |
-| 3 — ARP spoofing | YA | L2 attack. VM punya MAC sendiri (lihat di `ip link`). Bettercap/arpspoof jalan normal di Ubuntu VM. Lihat caveat di bawah. |
-| 4 — port mirror SPAN | YA, kalau Windows host colok ke port mirror via Ethernet (bukan WiFi). VM bridge ke Ethernet adapter Windows, Promiscuous: Allow All. |
+| 0 — co-located | YA | Server (`node server.js`) dan sniffer sama-sama di VM, sniff `enp0s3`. Browser bisa di Windows host: `http://<IP-VM>:3000`. |
+| 1 — C jadi hotspot | TIDAK | Hotspot butuh kartu WiFi dalam mode AP, dan ini tidak bisa dilakukan lewat virtual NIC bridge. Solusinya: passthrough USB WiFi adapter yang mendukung mode AP. |
+| 2 — passive monitor di WiFi terbuka | TIDAK (lewat WiFi bawaan laptop) | VirtualBox bridge ke WiFi bawaan hanya meneruskan frame Ethernet, bukan frame 802.11. Solusinya: passthrough USB adapter yang mendukung monitor mode. |
+| 3 — ARP spoofing | YA | Serangan Layer 2. VM punya MAC sendiri (cek di `ip link`). Bettercap dan arpspoof jalan normal. Baca catatan di bawah. |
+| 4 — port mirror SPAN | YA, asal Windows host nyolok ke port mirror via Ethernet (bukan WiFi), VM bridge ke adapter Ethernet itu, dan Promiscuous: Allow All. |
 
-### Caveat Skenario 3 dari VM Windows+Ubuntu
+### Catatan khusus Skenario 3 dari VM Windows+Ubuntu
 
-ARP spoof dari VM di-bridge ke WiFi host kadang **bermasalah karena WiFi driver Windows tidak izinkan multiple MAC dari satu interface**. VirtualBox biasanya bypass dengan rewrite frame, tapi sebagian driver/router menolak. Test dulu:
+ARP spoof dari VM yang di-bridge ke WiFi host kadang gagal karena **driver WiFi di Windows umumnya tidak mengizinkan banyak MAC dari satu interface fisik**. VirtualBox biasanya menyiasati dengan rewrite frame di sisi host, tapi sebagian driver dan router tetap menolak. Tes dulu sebelum demo:
 
 ```sh
-# Di Ubuntu VM, ARP scan LAN:
+# Di Ubuntu VM, scan ARP di LAN:
 sudo arp-scan --interface=enp0s3 --localnet
-# Harus tampak IP+MAC peer (laptop lain di WiFi, Windows host, router gateway).
+# Harus muncul daftar IP+MAC peer (laptop lain di WiFi, Windows host, gateway).
 
-# Test ping ke peer:
+# Tes ping ke peer:
 ping <IP-laptop-mahasiswa-lain>
-# Kalau jawaban OK, ARP spoof bisa jalan.
-# Kalau timeout, kemungkinan AP client isolation aktif → tidak ada solusi software-side.
+# Kalau dapat balasan, ARP spoof bisa dicoba.
+# Kalau timeout, kemungkinan AP-nya pakai client isolation — tidak ada solusi dari sisi software.
 ```
 
-Kalau bridge ke WiFi bermasalah: gunakan **Ethernet** untuk bridge VM (kalau ada switch antar laptop), atau host-only network + Ethernet crossover untuk demo antar 2 laptop fisik.
+Kalau bridge ke WiFi memang bermasalah: pakai **Ethernet** untuk bridge VM (kalau ada switch antar laptop), atau gunakan host-only network plus kabel crossover Ethernet untuk demo dua laptop saja.
 
-### USB passthrough untuk Skenario 2 (passive monitor mode)
+### USB passthrough untuk Skenario 2 (passive monitor)
 
-Skenario 2 (passive sniff open WiFi) **wajib pakai USB WiFi adapter eksternal** yang support monitor mode, karena chipset onboard WiFi laptop biasa di Windows tidak expose radio layer ke VM via VirtualBox bridge.
+Untuk Skenario 2 dari VM, **wajib pakai USB WiFi adapter eksternal** yang mendukung monitor mode. Kartu WiFi bawaan laptop biasa tidak meneruskan radio layer ke VM lewat bridge VirtualBox.
 
-**Adapter yang well-supported di Ubuntu**:
-- **Alfa AWUS036NHA** (chipset Atheros AR9271) — driver built-in, paling reliable
-- **Alfa AWUS036ACH** (Realtek RTL8812AU) — perlu DKMS driver kadang, dual-band 5GHz
-- **Panda PAU09** (Ralink RT5572) — dual-band, terjangkau
-- **TP-Link TL-WN722N v1** (AR9271, sama chipset Alfa) — versi v1 saja, v2/v3 beda chipset
+**Adapter yang dukungannya bagus di Ubuntu:**
+- **Alfa AWUS036NHA** — chipset Atheros AR9271, driver sudah bawaan kernel, paling stabil.
+- **Alfa AWUS036ACH** — chipset Realtek RTL8812AU, dual-band 5 GHz, kadang perlu install driver DKMS.
+- **Panda PAU09** — chipset Ralink RT5572, dual-band, harganya terjangkau.
+- **TP-Link TL-WN722N v1** — chipset AR9271, sama dengan Alfa NHA. Hanya versi v1, karena v2 dan v3 sudah ganti chipset yang tidak mendukung monitor mode.
 
-**Steps:**
+**Langkah:**
 
-1. Colok USB adapter ke Windows host. Windows mungkin install driver dummy — abaikan.
+1. Colok USB adapter ke laptop Windows. Windows mungkin akan menginstall driver default — abaikan saja, biarkan.
 2. VirtualBox Manager → pilih VM → **Settings → USB**:
    - **Enable USB Controller**: ✓
-   - **USB 3.0 (xHCI) Controller**: ✓ (kalau adapter USB 3.0; pakai USB 2.0 EHCI kalau adapter USB 2.0)
-3. Klik ikon **Add Filter from list** (ikon USB + dengan plus) → pilih USB WiFi adapter dari daftar device terdeteksi (e.g., `ATHEROS_AR9271`).
-4. **OK** untuk save filter.
-5. Start VM. Verifikasi di Ubuntu:
+   - **USB 3.0 (xHCI) Controller**: ✓ untuk adapter USB 3.0, atau USB 2.0 (EHCI) untuk adapter USB 2.0.
+3. Klik ikon **Add Filter from list** (ikon USB dengan tanda plus) → pilih USB WiFi adapter dari daftar perangkat yang terdeteksi (contohnya muncul sebagai `ATHEROS_AR9271`).
+4. Klik **OK** untuk menyimpan filter.
+5. Nyalakan VM. Cek di Ubuntu:
    ```sh
-   lsusb                                    # cari Atheros / Ralink / Realtek
-   ip link                                  # interface baru muncul, biasanya wlx<mac> atau wlan0
+   lsusb                            # cari Atheros / Ralink / Realtek
+   ip link                          # interface baru muncul, biasanya wlx<mac> atau wlan0
    sudo iw list | grep -A 3 "Supported interface modes" | grep monitor
-   # output harus include "* monitor"
+   # baris yang muncul harus berisi "* monitor"
    ```
-6. **Disable WiFi adapter di Windows host** supaya tidak ada channel conflict — bisa pakai Ethernet di Windows untuk internet sambil USB adapter exclusively untuk sniff di VM. Atau biarkan dua-duanya aktif kalau hanya passive monitor (channel tidak harus sama dengan koneksi internet).
+6. **Matikan WiFi adapter di Windows host** supaya tidak rebutan channel. Internet di Windows bisa pakai Ethernet, sementara USB adapter dipakai eksklusif untuk sniff di VM. Atau biarkan keduanya hidup kalau cuma untuk passive monitor di channel yang berbeda dari koneksi internet.
 7. Di Ubuntu VM:
    ```sh
    # Cari channel target dulu:
    sudo iw dev wlan0 scan | grep -E "SSID|freq|signal" | head -20
-   # atau dari Windows host, lihat current WiFi channel di Network adapter properties
+   # alternatif: lihat channel WiFi saat ini dari properti adapter di Windows host
 
-   sudo airmon-ng check kill                # matikan NetworkManager yang interfere
-   sudo airmon-ng start wlan0               # buat wlan0mon
-   sudo iw dev wlan0mon set channel 36      # ganti channel sesuai target AP
+   sudo airmon-ng check kill                # matikan NetworkManager yang sering mengganggu
+   sudo airmon-ng start wlan0               # interface wlan0mon akan dibuat
+   sudo iw dev wlan0mon set channel 36      # ganti channel sesuai AP target
    sudo tcpdump -i wlan0mon -A -s 0 -nn 'tcp port 3000'
-   # atau live di Wireshark VM
+   # atau buka Wireshark langsung di VM
    ```
 
-### Setup tipikal demo 3-mahasiswa (semua Windows+Ubuntu VM)
+### Susunan demo 3-mahasiswa (semua pakai Windows+Ubuntu VM)
 
-Ideal: 3 mahasiswa, masing-masing Windows laptop dengan Ubuntu VM bridge mode di WiFi lab yang sama. Pembagian peran:
+Ideal: tiga mahasiswa, masing-masing dengan laptop Windows + Ubuntu VM bridge mode di WiFi lab yang sama. Pembagian perannya:
 
-- **Mahasiswa A** (Server): jalankan `node server.js` di Ubuntu VM. Catat IP VM (`ip addr show`). Share IP ke teman.
-- **Mahasiswa B** (Browser client): pakai browser di Windows host atau di Ubuntu VM. Akses `http://<IP-VM-A>:3000/login`. Login pakai akun demo.
-- **Mahasiswa C** (Sniffer): tergantung skenario:
-  - **Skenario 0** (latihan dulu): jalankan server + sniffer di VM sendiri, akses dari browser VM sendiri. Bukan demo 3-orang, tapi pemanasan.
-  - **Skenario 3** (ARP spoof): di Ubuntu VM jalankan `bettercap` (lihat command di Skenario 3). Target IP B. Saat B login ke A, paket muncul di bettercap output di laptop C.
-  - **Skenario 2** (passive monitor open WiFi): butuh USB Alfa adapter (instruktur sediakan bergiliran). Pasang ke laptop C, passthrough ke VM, jalankan airmon-ng + tcpdump.
+- **Mahasiswa A (Server)**: jalankan `node server.js` di Ubuntu VM, lihat IP VM dengan `ip addr show`, kasih tahu IP-nya ke yang lain.
+- **Mahasiswa B (Browser)**: pakai browser di Windows host atau di Ubuntu VM, buka `http://<IP-VM-A>:3000/login`, login dengan akun demo.
+- **Mahasiswa C (Sniffer)**: tergantung skenario:
+  - **Skenario 0** (untuk pemanasan): server dan sniffer dijalankan di VM C, browser juga di VM C. Bukan demo tiga-orang, tapi cara cepat membiasakan diri membaca output tcpdump.
+  - **Skenario 3** (ARP spoof): jalankan `bettercap` di Ubuntu VM, set target ke IP B. Begitu B login ke A, paketnya akan muncul di output bettercap pada laptop C.
+  - **Skenario 2** (passive monitor di WiFi terbuka): butuh USB Alfa adapter — biasanya cukup satu yang disediakan dosen, dipakai bergiliran tiap kelompok. Colok ke laptop C, passthrough ke VM, lalu jalankan airmon-ng dan tcpdump.
 
-Saran: mulai dengan Skenario 0 individual (semua mahasiswa coba sendiri di laptop masing-masing), lalu Skenario 3 berkelompok 3, baru Skenario 2 dengan adapter yang dibagi.
+Saran urutannya: mulai dari Skenario 0 (semua mahasiswa coba sendiri-sendiri di laptop masing-masing) → Skenario 3 (berkelompok tiga) → Skenario 2 (dengan adapter yang dipakai bergantian).
 
-### Setup tipikal instruktur
+### Susunan demo untuk dosen
 
-Instruktur cukup 1 laptop (Mac / Linux / Windows) dengan VirtualBox + Ubuntu VM + USB Alfa adapter. Bisa demo semua skenario sendiri di depan kelas, lalu kelas reproduce di laptop masing-masing.
+Cukup satu laptop (Mac, Linux, atau Windows) yang sudah berisi VirtualBox + Ubuntu VM + USB Alfa. Dosen bisa demo semua skenario sendiri di depan kelas, lalu mahasiswa mengulanginya di laptop masing-masing.
 
 ---
 
-## Pilih skenario
+## Memilih skenario
 
-| # | Topologi | Setup time | Pendidikan utama | Realism |
+| # | Topologi | Waktu setup | Yang dipelajari | Realisme |
 |---|---|---|---|---|
-| 0 | A = server + sniffer | 1 menit | Pembuktian konsep tcpdump output | Rendah |
-| 1 | C = hotspot router | 5 menit | Hotspot owner = visibility owner | Tinggi (rogue hotspot, evil twin) |
-| 2 | C = passive monitor di open WiFi | 5–10 menit | Sniff pasif tanpa jejak | Sangat tinggi (open WiFi attack) |
-| 3 | C = peer di LAN yang sama (ARP spoof) | 10 menit | MITM tanpa privilege khusus | Tinggi (public WiFi yang terenkripsi pun) |
-| 4 | C = port mirror legitimate | (config switch) | NPM/IDS deploy operasional | Tinggi (enterprise monitoring) |
+| 0 | A = server + sniffer | 1 menit | Cara membaca output tcpdump | Rendah |
+| 1 | C = hotspot router | 5 menit | Pemilik hotspot = pemilik visibilitas | Tinggi (rogue hotspot, evil twin) |
+| 2 | C = passive monitor di WiFi terbuka | 5–10 menit | Sniff pasif yang tidak meninggalkan jejak | Sangat tinggi (serangan WiFi terbuka) |
+| 3 | C = client biasa di LAN (ARP spoof) | 10 menit | MITM tanpa hak akses istimewa | Tinggi (bahkan di WiFi terenkripsi) |
+| 4 | C = port mirror legitimate | (config switch) | Cara IDS/NPM dipasang di production | Tinggi (lingkungan enterprise) |
 
-Rekomendasi alur demo kelas:
-1. **Skenario 0** dulu — tunjukkan output tcpdump, biar mahasiswa familiar dengan format paket.
-2. **Skenario 2** — paling impactful: tunjukkan bahwa di open WiFi, attacker hanya perlu duduk dan dengar. Tidak ada interaksi dengan korban.
-3. **Skenario 3** — bahkan di encrypted WiFi, peer di LAN sama bisa MITM via ARP.
-4. **Skenario 1** — variasi: kalau bukan peer pasif, attacker bisa juga jadi rogue hotspot di tempat publik.
-5. **Skenario 4** — disebut conceptually saat membahas defensive monitoring (Snort/Suricata, SIEM, network TAP forensics).
+Urutan demo yang disarankan:
+1. **Skenario 0** dulu — supaya mahasiswa familiar dengan format output tcpdump.
+2. **Skenario 2** — paling berdampak: tunjukkan bahwa di WiFi terbuka, penyerang cukup duduk dan dengar, tanpa berinteraksi dengan korban.
+3. **Skenario 3** — bahkan di WiFi terenkripsi, sesama client masih bisa di-MITM lewat ARP.
+4. **Skenario 1** — variasi: bukannya pasif, penyerang bisa juga jadi hotspot palsu di tempat umum.
+5. **Skenario 4** — cukup dibahas secara konsep saat masuk ke topik defensive monitoring (Snort, Suricata, SIEM, network TAP forensics).
 
 ## Pelajaran setelah demo
 
-| Tanpa TLS (HTTP) | Dengan TLS (HTTPS) |
+| HTTP polos | HTTPS (TLS) |
 |---|---|
-| Username + password tampak plaintext di sniff | Header + body terenkripsi, sniffer hanya melihat TLS handshake metadata (SNI, cipher) |
+| Username dan password tampak apa adanya di hasil sniff | Header dan body terenkripsi; sniffer hanya melihat metadata TLS handshake (SNI, cipher) |
 | Cookie session juga bisa dicuri → session hijacking | Cookie tidak terbaca |
-| Form file upload juga vulnerable | Aman selama TLS valid |
+| Form upload file juga rawan | Aman selama certificate TLS-nya valid |
 
-Solusi yang sudah mahasiswa lakukan di sesi 6–7: deploy via Netlify dengan Let's Encrypt SSL otomatis. Untuk VPS deploy di sesi 13, gunakan `certbot` atau reverse proxy (Caddy/Traefik) yang handle TLS otomatis.
+Solusi yang sudah dilakukan mahasiswa di sesi 6–7: deploy lewat Netlify dengan SSL otomatis dari Let's Encrypt. Untuk deploy VPS di sesi 13, pakai `certbot` atau reverse proxy seperti Caddy/Traefik yang menangani TLS secara otomatis.
 
-## Lawan defense
+## Cara mencegah
 
-- **Jangan deploy login form lewat HTTP** — selalu HTTPS, redirect 301 dari port 80.
-- **HSTS header** (`Strict-Transport-Security: max-age=31536000; includeSubDomains`) — browser refuse fallback ke HTTP.
-- **Secure cookie flag** (`Set-Cookie: session=...; Secure; HttpOnly; SameSite=Strict`) — cookie tidak dikirim via HTTP, tidak terbaca JavaScript.
+- **Jangan deploy form login di HTTP** — selalu HTTPS, dan redirect 301 dari port 80.
+- **Header HSTS** (`Strict-Transport-Security: max-age=31536000; includeSubDomains`) — browser akan menolak fallback ke HTTP.
+- **Flag cookie aman** (`Set-Cookie: session=...; Secure; HttpOnly; SameSite=Strict`) — cookie tidak akan dikirim lewat HTTP dan tidak bisa dibaca dari JavaScript.
 - **Certificate pinning** untuk aplikasi mobile.
-- **DHCP snooping + Dynamic ARP Inspection** di switch → mitigasi ARP spoof (Skenario 3) di network kantor.
-- **WPA3 SAE** → setiap session punya unique key, sniff WiFi terenkripsi jauh lebih sulit dari WPA2-PSK (Skenario 2 masih jalan untuk open WiFi).
-- **VPN client-side** di public WiFi → encrypt traffic dari endpoint user ke VPN server, sniff cafe hanya melihat tunnel ciphertext.
+- **DHCP snooping + Dynamic ARP Inspection** di switch — mitigasi ARP spoof (Skenario 3) untuk jaringan kantor.
+- **WPA3 SAE** — setiap session punya key unik, sniff WiFi terenkripsi jauh lebih sulit dibanding WPA2-PSK. (Skenario 2 masih jalan kalau WiFi-nya terbuka.)
+- **VPN di sisi client** saat di WiFi publik — trafik dari device user ke VPN server sudah terenkripsi, sniffer di kafe cuma melihat ciphertext tunnel.
 
 ## File
 
-- `server.js` — single-file Node.js HTTP server (zero deps)
+- `server.js` — single-file Node.js HTTP server (tanpa dependency)
