@@ -234,4 +234,169 @@ By default, network yang digunakan di virtualbox ataupun docker adalah tipe `NAT
         2 packets transmitted, 2 packets received, 0% packet loss
         round-trip min/avg/max = 0.126/0.455/0.784 ms
         ```
-    
+
+## Setup Internet Connection Sharing ##
+
+Untuk setup internet connection sharing, perlu dilakukan di VM gateway dan semua VM yang ada di network internal/private.
+
+Di VM gateway, kita perlu:
+
+* Enable packet forwarding
+* Setup NAT Masquerade
+
+Di VM private, kita perlu:
+
+* Mengarahkan internet gateway ke IP VM gateway
+
+### Di VM lab-alpine-gateway ##
+
+1. Enable packet forwarding di kernel
+
+    ```
+    sysctl -w net.ipv4.ip_forward=1
+    ```
+
+2. Install aplikasi `nftables` untuk setting firewall dan SNAT masquerade. Jaman dulu, ini dilakukan dengan aplikasi `iptables`. Aplikasi `nftables` adalah aplikasi baru yang menggantikan `iptables`. 
+
+    ```
+    apk add nftables
+    ```
+
+3. Dengan `iptables` kita sudah disediakan table NAT. Tapi di `nftables` kita harus buat sendiri secara manual
+
+    ```
+    nft add table ip nat
+    nft add chain ip nat postrouting { type nat hook postrouting priority 100 \; }
+    nft add rule ip nat postrouting oifname "eth0" masquerade
+    ```
+
+4. Cek hasil konfigurasi NAT dan Masquerade
+
+    ```
+    nft list ruleset
+    ```
+
+    Hasilnya tampil dalam format JSON seperti ini
+
+    ```json
+    table ip nat {
+        chain DOCKER_OUTPUT {
+            ip daddr 127.0.0.11 tcp dport 53 counter packets 0 bytes 0 xt target "DNAT"
+            ip daddr 127.0.0.11 udp dport 53 counter packets 4 bytes 233 xt target "DNAT"
+        }
+
+        chain OUTPUT {
+            type nat hook output priority dstnat; policy accept;
+            ip daddr 127.0.0.11 counter packets 4 bytes 233 jump DOCKER_OUTPUT
+        }
+
+        chain DOCKER_POSTROUTING {
+            ip saddr 127.0.0.11 tcp sport 40807 counter packets 0 bytes 0 xt target "SNAT"
+            ip saddr 127.0.0.11 udp sport 42132 counter packets 0 bytes 0 xt target "SNAT"
+        }
+
+        chain POSTROUTING {
+            type nat hook postrouting priority srcnat; policy accept;
+            ip daddr 127.0.0.11 counter packets 4 bytes 233 jump DOCKER_POSTROUTING
+        }
+
+        chain postrouting {
+            type nat hook postrouting priority srcnat; policy accept;
+            oifname "eth0" masquerade
+        }
+    }
+    ```
+
+### Di VM lab_a_1 ###
+
+1. Cek dulu routing bawaan
+
+    ```
+    ip route
+    ```
+
+    Outputnya seperti ini
+
+    ```
+    192.168.10.0/24 dev eth0 scope link  src 192.168.10.2 
+    ```
+
+2. Hapus default gateway bila ada
+
+    ```
+    ip route del default
+    ```
+
+3. Set default gateway ke IP VM Gateway
+
+    ```
+    ip route add default via 192.168.10.3
+    ```
+
+4. Show lagi routing table untuk memastikan konfigurasinya benar. Harusnya outputnya seperti ini
+
+    ```
+    default via 192.168.10.3 dev eth0 
+    192.168.10.0/24 dev eth0 scope link  src 192.168.10.2
+    ```
+
+5. Test ping gmail lagi
+
+    ```
+    / # ping gmail.com
+    ping: bad address 'gmail.com'
+    ```
+
+    Masih belum mau, tapi mungkin ini masalah DNS, bukan koneksi.
+
+6. Coba ping ke alamat yang public (misal: alamat IP gmail yang didapat dari ping di VM gateway)
+
+    ```
+    / # ping 142.251.10.83
+    PING 142.251.10.83 (142.251.10.83): 56 data bytes
+    64 bytes from 142.251.10.83: seq=0 ttl=106 time=21.399 ms
+    64 bytes from 142.251.10.83: seq=1 ttl=106 time=21.323 ms
+    64 bytes from 142.251.10.83: seq=2 ttl=106 time=20.594 ms
+    ^C
+    ```
+
+    Alamat `142.251.10.83` didapat dari hasil ping di VM gateway. Ping langsung ke IP berhasil, berarti paket datanya sudah tembus via gateway. Sekarang tinggal urusan DNS supaya bisa translate dari `gmail.com` ke IP `142.251.10.83`
+
+7. Setting DNS di VM private ke DNS google saja (8.8.8.8)
+
+    ```
+    echo "nameserver 8.8.8.8" > /etc/resolv.conf
+    ```
+
+8. Test ping lagi ke `gmail.com`
+
+    ```
+    / # ping gmail.com
+    PING gmail.com (142.251.10.17): 56 data bytes
+    64 bytes from 142.251.10.17: seq=0 ttl=106 time=21.038 ms
+    64 bytes from 142.251.10.17: seq=1 ttl=106 time=20.886 ms
+    64 bytes from 142.251.10.17: seq=2 ttl=106 time=20.247 ms
+    64 bytes from 142.251.10.17: seq=3 ttl=106 time=19.425 ms
+    ^C
+    ```
+
+    Untuk memastikan, cek ke domain lain
+
+    ```
+    / # ping stmik.tazkia.ac.id
+    PING stmik.tazkia.ac.id (172.67.216.248): 56 data bytes
+    64 bytes from 172.67.216.248: seq=0 ttl=55 time=21.187 ms
+    64 bytes from 172.67.216.248: seq=1 ttl=55 time=21.318 ms
+    64 bytes from 172.67.216.248: seq=2 ttl=55 time=24.502 ms
+    64 bytes from 172.67.216.248: seq=3 ttl=55 time=28.517 ms
+    ^C
+    --- stmik.tazkia.ac.id ping statistics ---
+    4 packets transmitted, 4 packets received, 0% packet loss
+    round-trip min/avg/max = 21.187/23.881/28.517 ms
+    ```
+
+
+# Referensi #
+
+* [Perbandingan virtualisasi di Apple Silicon dan cara pakai Docker untuk Lab Jaringan](https://gemini.google.com/share/e465d498d58e)
+* [Cara Lihat Network Interfaces di Alpine](https://gemini.google.com/share/4341df602d07)
