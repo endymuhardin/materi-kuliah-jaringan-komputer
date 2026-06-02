@@ -10,7 +10,37 @@ Lab akan terdiri dari :
 
 Topologi jaringan adalah sebagai berikut
 
-[![Topologi Jaringan](typesetting/diagram/uts-topologi.png)](typesetting/diagram/uts-topologi.png)
+```mermaid
+graph TD
+    INET([Internet<br/>via host laptop NAT])
+    ROUTER["<b>Router VM</b><br/>eth0 → NAT (Internet)<br/>eth1 = 192.168.10.1/24<br/>eth2 = 192.168.20.1/24<br/>+ extra disk → /data"]
+    SWA["Switch labA<br/>VirtualBox Internal<br/>192.168.10.0/24"]
+    SWB["Switch labB<br/>VirtualBox Internal<br/>192.168.20.0/24"]
+    A1["<b>A1</b> · 192.168.10.10<br/>DNS Server (dnsmasq)"]
+    A2["A2 · 192.168.10.11"]
+    B1["<b>B1</b> · 192.168.20.10<br/>HTTP Server (nginx)"]
+    B2["B2 · 192.168.20.11"]
+
+    INET --- ROUTER
+    ROUTER -- eth1 --- SWA
+    ROUTER -- eth2 --- SWB
+    SWA --- A1
+    SWA --- A2
+    SWB --- B1
+    SWB --- B2
+
+    classDef wan fill:#FFE4B5,stroke:#FF8C00,stroke-width:2px;
+    classDef router fill:#FFD7D7,stroke:#C53030,stroke-width:2px;
+    classDef switch fill:#D6EAF8,stroke:#2874A6,stroke-width:2px;
+    classDef host fill:#F5F7FA,stroke:#555555,stroke-width:1px;
+    classDef special fill:#D5F5E3,stroke:#1E8449,stroke-width:2px;
+
+    class INET wan;
+    class ROUTER router;
+    class SWA,SWB switch;
+    class A2,B2 host;
+    class A1,B1 special;
+```
 
 ## Setup Internet Gateway ##
 
